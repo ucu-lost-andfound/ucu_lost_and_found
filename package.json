@@ -1,0 +1,14 @@
+{
+  "name": "ucu-lost-found-project",
+  "private": true,
+  "workspaces": [
+    "ucu-lost-and-found--main/backend",
+    "ucu-lost-and-found--main/frontend"
+  ],
+  "scripts": {
+    "dev": "concurrently --kill-others --names backend,frontend \"npm run start --workspace=ucu-lost-found-backend\" \"npm run dev --workspace=ucu-lost-found-frontend\""
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}

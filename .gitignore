@@ -1,5 +1,8 @@
 node_modules/
+<<<<<<< HEAD
 .env
 dist/
 backend/uploads/*
 !backend/uploads/.gitkeep
+=======
+>>>>>>> 9ceb5e8 (Add campus login background)
