@@ -1,3 +1,130 @@
+require('dotenv').config();
+
+const express = require('express');
+const cors = require('cors');
+const bcrypt = require('bcrypt');
+const jwt = require('jsonwebtoken');
+const db = require('./db');
+const { authenticateToken, requireAdmin } = require('./middleware/auth');
+
+const app = express();
+const PORT = process.env.PORT || 5000;
+
+app.use(cors());
+app.use(express.json());
+
+// 1. AUTHENTICATION ENDPOINTS
+app.post('/api/register', async (req, res) => {
+  try {
+    const { full_name, reg_no, email, password } = req.body;
+
+    if (
+      typeof full_name !== 'string' || !full_name.trim() ||
+      typeof reg_no !== 'string' || !reg_no.trim() ||
+      typeof email !== 'string' || !email.trim() ||
+      typeof password !== 'string' || password.length < 6
+    ) {
+      return res.status(400).json({
+        error: 'Full name, registration number, email, and a password of at least 6 characters are required.',
+      });
+    }
+
+    const [existing] = await db.query(
+      'SELECT user_id FROM users WHERE reg_no = ? OR email = ?',
+      [reg_no.trim(), email.trim().toLowerCase()]
+    );
+    if (existing.length > 0) {
+      return res.status(409).json({ error: 'A user with this registration number or email already exists.' });
+    }
+
+    const password_hash = await bcrypt.hash(password, 10);
+    const [result] = await db.query(
+      'INSERT INTO users (full_name, reg_no, email, password_hash, role) VALUES (?, ?, ?, ?, "STUDENT")',
+      [full_name.trim(), reg_no.trim(), email.trim().toLowerCase(), password_hash]
+    );
+
+    return res.status(201).json({
+      message: 'Registration successful.',
+      user_id: result.insertId,
+    });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: 'Failed to register user.' });
+  }
+});
+
+app.post('/api/login', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    if (typeof email !== 'string' || !email.trim() || typeof password !== 'string' || !password) {
+      return res.status(400).json({ error: 'Email and password are required.' });
+    }
+
+    const [users] = await db.query(
+      'SELECT user_id, full_name, reg_no, email, password_hash, role FROM users WHERE email = ?',
+      [email.trim().toLowerCase()]
+    );
+    if (users.length === 0) {
+      return res.status(401).json({ error: 'Invalid email or password.' });
+    }
+
+    const user = users[0];
+    const passwordMatches = await bcrypt.compare(password, user.password_hash);
+    if (!passwordMatches) {
+      return res.status(401).json({ error: 'Invalid email or password.' });
+    }
+
+    const token = jwt.sign(
+      {
+        user_id: user.user_id,
+        full_name: user.full_name,
+        reg_no: user.reg_no,
+        email: user.email,
+        role: user.role,
+      },
+      process.env.JWT_SECRET,
+      { expiresIn: '8h' }
+    );
+
+    return res.json({
+      token,
+      user: {
+        user_id: user.user_id,
+        full_name: user.full_name,
+        reg_no: user.reg_no,
+        email: user.email,
+        role: user.role,
+      },
+    });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: 'Failed to log in.' });
+  }
+});
+
+app.post('/api/seed-passwords', async (req, res) => {
+  try {
+    const password = typeof req.body.password === 'string' && req.body.password
+      ? req.body.password
+      : 'password';
+    const password_hash = await bcrypt.hash(password, 10);
+    const [result] = await db.query(
+      'UPDATE users SET password_hash = ?',
+      [password_hash]
+    );
+
+    return res.json({
+      message: 'Seed user passwords updated.',
+      password,
+      updated: result.affectedRows,
+    });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: 'Failed to seed passwords.' });
+  }
+});
+
 // 3. CLAIMS & ADMIN WORKFLOW ENDPOINTS
 app.post('/api/claims', authenticateToken, async (req, res) => {
   try {
@@ -150,4 +277,8 @@ app.patch('/api/items/:id/return', authenticateToken, requireAdmin, async (req, 
     console.error(err);
     return res.status(500).json({ error: 'Failed to mark item as returned.' });
   }
+});
+
+app.listen(PORT, () => {
+  console.log(`Server running on http://localhost:${PORT}`);
 });
