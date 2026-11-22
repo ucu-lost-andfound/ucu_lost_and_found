@@ -9,9 +9,44 @@ const { authenticateToken, requireAdmin } = require('./middleware/auth');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
 
 app.use(cors());
 app.use(express.json());
+
+
+const uploadDir = path.join(__dirname, 'uploads');
+
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir, { recursive: true });
+}
+
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, uploadDir);
+  },
+  filename: (req, file, cb) => {
+    const uniqueName = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, uniqueName + path.extname(file.originalname).toLowerCase());
+  }
+});
+
+const upload = multer({
+  storage: storage,
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype.startsWith('image/')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only image files are allowed.'));
+    }
+  }
+});
+
+// Make uploaded images accessible to the frontend
+app.use('/uploads', express.static(uploadDir));
 
 // 1. AUTHENTICATION ENDPOINTS
 app.post('/api/register', async (req, res) => {
@@ -276,6 +311,225 @@ app.patch('/api/items/:id/return', authenticateToken, requireAdmin, async (req, 
   } catch (err) {
     console.error(err);
     return res.status(500).json({ error: 'Failed to mark item as returned.' });
+  }
+});
+
+// ==========================================
+//  ITEMS, SEARCH AND REPORTING
+// ==========================================
+
+// GET ALL ITEMS WITH SEARCH FILTERS
+app.get('/api/items', authenticateToken, async (req, res) => {
+  try {
+    const { keyword, category, location, date, type } = req.query;
+
+    let sql = `
+      SELECT
+        i.item_id,
+        i.reporter_id,
+        i.report_type,
+        i.title,
+        i.category,
+        i.public_description,
+        i.campus_location,
+        i.incident_date,
+        i.image_url,
+        i.status,
+        u.full_name AS reporter_name,
+        CASE
+          WHEN ? = 'ADMIN' OR i.reporter_id = ?
+          THEN i.private_details
+          ELSE NULL
+        END AS private_details
+      FROM items i
+      JOIN users u ON i.reporter_id = u.user_id
+      WHERE 1=1
+    `;
+
+    const params = [req.user.role, req.user.user_id];
+
+    if (keyword) {
+      sql += ' AND (i.title LIKE ? OR i.public_description LIKE ?)';
+      params.push(`%${keyword}%`, `%${keyword}%`);
+    }
+
+    if (category) {
+      sql += ' AND i.category = ?';
+      params.push(category);
+    }
+
+    if (location) {
+      sql += ' AND i.campus_location LIKE ?';
+      params.push(`%${location}%`);
+    }
+
+    if (date) {
+      sql += ' AND i.incident_date = ?';
+      params.push(date);
+    }
+
+    if (type) {
+      sql += ' AND i.report_type = ?';
+      params.push(type);
+    }
+
+    sql += ' ORDER BY i.created_at DESC';
+
+    const [items] = await db.query(sql, params);
+
+    res.json(items);
+  } catch (err) {
+    console.error('Item retrieval error:', err);
+    res.status(500).json({ error: 'Failed to retrieve items.' });
+  }
+});
+
+// CREATE A NEW LOST OR FOUND ITEM REPORT
+app.post(
+  '/api/items',
+  authenticateToken,
+  upload.single('image'),
+  async (req, res) => {
+    try {
+      const {
+        report_type,
+        title,
+        category,
+        public_description,
+        private_details,
+        campus_location,
+        incident_date
+      } = req.body;
+
+      if (
+        !report_type ||
+        !title ||
+        !category ||
+        !public_description ||
+        !campus_location ||
+        !incident_date
+      ) {
+        return res.status(400).json({
+          error: 'Please complete all required fields.'
+        });
+      }
+
+      if (!['LOST', 'FOUND'].includes(report_type)) {
+        return res.status(400).json({
+          error: 'Report type must be LOST or FOUND.'
+        });
+      }
+
+      const image_url = req.file
+        ? `/uploads/${req.file.filename}`
+        : null;
+
+      await db.query(
+        `INSERT INTO items (
+          reporter_id,
+          report_type,
+          title,
+          category,
+          public_description,
+          private_details,
+          campus_location,
+          incident_date,
+          image_url
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          req.user.user_id,
+          report_type,
+          title,
+          category,
+          public_description,
+          private_details || null,
+          campus_location,
+          incident_date,
+          image_url
+        ]
+      );
+
+      res.status(201).json({
+        message: 'Report submitted successfully.'
+      });
+
+    } catch (err) {
+      console.error('Item creation error:', err);
+      res.status(500).json({
+        error: 'Error creating item report.'
+      });
+    }
+  }
+);
+// UPDATE AN EXISTING ITEM REPORT
+app.put('/api/items/:id', authenticateToken, async (req, res) => {
+  try {
+    const [existing] = await db.query(
+      'SELECT * FROM items WHERE item_id = ?',
+      [req.params.id]
+    );
+
+    if (existing.length === 0) {
+      return res.status(404).json({ error: 'Item not found.' });
+    }
+
+    if (
+      existing[0].reporter_id !== req.user.user_id &&
+      req.user.role !== 'ADMIN'
+    ) {
+      return res.status(403).json({
+        error: 'You may only edit your own reports.'
+      });
+    }
+
+    const {
+      title,
+      category,
+      public_description,
+      private_details,
+      campus_location,
+      incident_date
+    } = req.body;
+
+    if (
+      !title ||
+      !category ||
+      !public_description ||
+      !campus_location ||
+      !incident_date
+    ) {
+      return res.status(400).json({
+        error: 'Please complete all required fields.'
+      });
+    }
+
+    await db.query(
+      `UPDATE items
+       SET title = ?,
+           category = ?,
+           public_description = ?,
+           private_details = ?,
+           campus_location = ?,
+           incident_date = ?
+       WHERE item_id = ?`,
+      [
+        title,
+        category,
+        public_description,
+        private_details || null,
+        campus_location,
+        incident_date,
+        req.params.id
+      ]
+    );
+
+    res.json({ message: 'Report updated successfully.' });
+
+  } catch (err) {
+    console.error('Item update error:', err);
+    res.status(500).json({
+      error: 'Failed to update report.'
+    });
   }
 });
 
