@@ -138,28 +138,6 @@ app.post('/api/login', async (req, res) => {
   }
 });
 
-app.post('/api/seed-passwords', async (req, res) => {
-  try {
-    const password = typeof req.body.password === 'string' && req.body.password
-      ? req.body.password
-      : 'password';
-    const password_hash = await bcrypt.hash(password, 10);
-    const [result] = await db.query(
-      'UPDATE users SET password_hash = ?',
-      [password_hash]
-    );
-
-    return res.json({
-      message: 'Seed user passwords updated.',
-      password,
-      updated: result.affectedRows,
-    });
-  } catch (err) {
-    console.error(err);
-    return res.status(500).json({ error: 'Failed to seed passwords.' });
-  }
-});
-
 // 3. CLAIMS & ADMIN WORKFLOW ENDPOINTS
 app.post('/api/claims', authenticateToken, async (req, res) => {
   try {

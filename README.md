@@ -23,7 +23,7 @@ Open two terminals in the project folder.
 
 ### Backend
 
-The backend reads its database and JWT settings from `backend/.env`. Keep this file local and do not share or commit its secret values. Configure these variables if needed:
+The backend reads its database and JWT settings from `backend/.env`. Start with the example file and configure your local values:
 
 ```env
 PORT=5000
@@ -34,12 +34,14 @@ DB_NAME=ucu_lost_found
 JWT_SECRET=use_a_long_random_secret
 ```
 
+For a local setup, copy `backend/.env.example` to `backend/.env`. Keep `.env` local; never commit or share its secret values.
+
 Install dependencies and start the API:
 
 ```powershell
 cd backend
 npm install
-node server.js
+npm start
 ```
 
 The API will be available at `http://localhost:5000/api`.
@@ -67,6 +69,38 @@ npm run dev
 ```
 
 Open the local URL printed by Vite. By default, the frontend sends API requests to `http://localhost:5000/api`. If the backend runs at a different address, set `VITE_API_URL` in the frontend environment, for example `http://localhost:5000/api`, then restart Vite.
+
+## Deploy online
+
+One simple setup is **Railway** for the Express API and MySQL, with **Vercel** for the Vite frontend.
+
+### 1. Deploy the API and database on Railway
+
+1. Create a Railway project from this GitHub repository and add a MySQL service.
+2. Add a service for the repository with its root directory set to `backend` and its start command set to `npm start`.
+3. In the API service's variables, set `DB_HOST`, `DB_USER`, `DB_PASSWORD`, and `DB_NAME` to the corresponding values provided by the Railway MySQL service. Set `JWT_SECRET` to a new, long random value. Railway supplies `PORT`.
+4. Select the hosted database and import `database/schema.sql` once. This production schema does not create demo users.
+5. Generate a public domain for the API service. Its API URL will end with `/api`.
+
+Do not upload or commit `backend/.env`; set production values in the hosting provider's secret environment variables. If real credentials were previously committed, rotate them before deploying.
+
+After deployment, register your own account, then promote it to administrator in the hosted database console:
+
+```sql
+UPDATE users SET role = 'ADMIN' WHERE email = 'your-admin-email@example.com';
+```
+
+Sign out and sign back in for the new role to take effect. Do not use the sample accounts in `database/schema_and_seed.sql` in production; they are for local demos.
+
+### 2. Deploy the frontend on Vercel
+
+1. Import the same GitHub repository into Vercel.
+2. Set the project root directory to `frontend`. Use `npm run build` as the build command and `dist` as the output directory.
+3. Add the environment variable `VITE_API_URL` with the Railway API URL, including `/api`, then deploy.
+
+### Uploaded images
+
+The API currently stores uploaded images in its local `backend/uploads` directory. Configure persistent storage mounted at the API's uploads directory, or switch to object storage, so images survive redeployments. Without persistent storage, uploaded images may be lost when the service restarts.
 
 ## Troubleshooting
 
