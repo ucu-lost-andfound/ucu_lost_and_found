@@ -3,6 +3,14 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 const API_ORIGIN = API_URL.replace(/\/api\/?$/, '');
 const CATEGORIES = ['Keys', 'Electronics', 'ID / Cards', 'Books / Stationery', 'Other'];
+const DEVELOPERS = [
+  'Mawejje Alesha',
+  'Osire Samuel',
+  'Nangiro Apollo',
+  'Okumu Oscar Ebiru',
+  'Mulungi Favour Priscilla',
+  'Nimusima Cuthbert',
+];
 
 async function request(path, { token, body, ...options } = {}) {
   const headers = new Headers(options.headers || {});
@@ -59,6 +67,7 @@ export default function App() {
   const [user, setUser] = useState(readSavedUser);
   const [view, setView] = useState('browse');
   const [authMode, setAuthMode] = useState('login');
+  const [showDevelopers, setShowDevelopers] = useState(false);
   const [authForm, setAuthForm] = useState({
     full_name: '',
     reg_no: '',
@@ -276,13 +285,22 @@ export default function App() {
 
   if (!token || !user) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-slate-100 p-4">
-        <div className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-6 shadow-md">
+      <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-slate-950 p-4">
+        <div
+          aria-hidden="true"
+          className="absolute inset-0 bg-cover bg-center"
+          style={{ backgroundImage: "url('/ucu-campus-library.png')" }}
+        />
+        <div aria-hidden="true" className="absolute inset-0 bg-slate-950/30" />
+        <div className="relative z-10 w-full max-w-md rounded-xl border border-white/30 bg-white/20 p-6 shadow-2xl backdrop-blur-md">
           <h1 className="text-center text-2xl font-bold text-slate-900">
             UCU Campus Lost &amp; Found
           </h1>
-          <p className="mb-6 mt-1 text-center text-sm text-slate-600">
+          <p className="mt-1 text-center text-sm font-medium text-slate-700">
             Uganda Christian University · Mukono Campus
+          </p>
+          <p className="mb-6 mt-3 text-center text-sm leading-relaxed text-slate-800">
+            Helping our campus community report lost belongings, find recovered items, and return them to their owners.
           </p>
           {notice.text && <Notice notice={notice} />}
           <form onSubmit={handleAuth} className="space-y-4">
@@ -351,7 +369,75 @@ export default function App() {
           >
             {authMode === 'login' ? 'Need a student account? Register here' : 'Already have an account? Sign in'}
           </button>
+          <button
+            type="button"
+            onClick={() => setShowDevelopers(true)}
+            className="mt-2 w-full rounded p-1 text-sm font-semibold text-slate-900 underline focus:outline-none focus:ring-2 focus:ring-blue-700"
+          >
+            Meet the Developers
+          </button>
         </div>
+        {showDevelopers && (
+          <div
+            role="presentation"
+            className="fixed inset-0 z-20 flex items-center justify-center bg-slate-950/60 p-4"
+            onMouseDown={(event) => {
+              if (event.target === event.currentTarget) setShowDevelopers(false);
+            }}
+            onKeyDown={(event) => {
+              if (event.key === 'Escape') setShowDevelopers(false);
+            }}
+          >
+            <section
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="developers-heading"
+              className="max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-2xl border border-white/50 bg-white/95 p-6 shadow-2xl"
+            >
+              <div className="mb-5 flex items-start justify-between gap-4">
+                <div>
+                  <h2 id="developers-heading" className="text-xl font-bold text-slate-900">
+                    Meet the Developers
+                  </h2>
+                  <p className="mt-1 text-sm text-slate-600">
+                    The team behind UCU Campus Lost &amp; Found.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  aria-label="Close developers"
+                  onClick={() => setShowDevelopers(false)}
+                  className="rounded px-2 py-1 text-xl leading-none text-slate-600 hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-700"
+                >
+                  &times;
+                </button>
+              </div>
+              <ul className="grid gap-3 sm:grid-cols-2">
+                {DEVELOPERS.map((name) => {
+                  const initials = name
+                    .split(/\s+/)
+                    .map((part) => part[0])
+                    .slice(0, 2)
+                    .join('');
+                  return (
+                    <li
+                      key={name}
+                      className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-3 shadow-sm"
+                    >
+                      <span
+                        aria-hidden="true"
+                        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-blue-900 text-sm font-bold text-white"
+                      >
+                        {initials}
+                      </span>
+                      <span className="text-sm font-semibold text-slate-800">{name}</span>
+                    </li>
+                  );
+                })}
+              </ul>
+            </section>
+          </div>
+        )}
       </main>
     );
   }
