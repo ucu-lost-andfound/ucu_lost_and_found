@@ -2,7 +2,7 @@ require('dotenv').config();
 
 const express = require('express');
 const cors = require('cors');
-const bcrypt = require('bcrypt');
+const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const db = require('./db');
 const { authenticateToken, requireAdmin } = require('./middleware/auth');
@@ -13,9 +13,36 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 
-app.use(cors());
+if (!process.env.JWT_SECRET) {
+  throw new Error('JWT_SECRET must be configured before starting the API.');
+}
+
+const allowedOrigins = new Set([
+  ...(process.env.NODE_ENV === 'production'
+    ? []
+    : ['http://localhost:5173', 'http://127.0.0.1:5173']),
+  ...(process.env.CORS_ORIGIN || '')
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean),
+]);
+
+app.use(cors({
+  origin(origin, callback) {
+    callback(null, !origin || allowedOrigins.has(origin));
+  },
+}));
 app.use(express.json());
 
+app.get('/health', async (req, res) => {
+  try {
+    await db.query('SELECT 1');
+    return res.json({ status: 'ok', database: 'connected' });
+  } catch (err) {
+    console.error('Health check failed:', err);
+    return res.status(503).json({ status: 'error', database: 'unavailable' });
+  }
+});
 
 const uploadDir = path.join(__dirname, 'uploads');
 

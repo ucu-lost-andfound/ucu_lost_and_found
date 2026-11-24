@@ -1,109 +1,127 @@
 # UCU Campus Lost & Found
 
-A React app and Express API for reporting lost or found items, submitting ownership claims, and reviewing claims as an administrator.
+A responsive React and Express application for reporting lost or found items, submitting private ownership claims, and reviewing claims as an administrator. The frontend works on desktop and mobile browsers.
 
 ## Features
 
 - Browse, search, and filter lost and found reports.
 - Submit ownership claims with private evidence for administrator review.
 - Review claims and track item handovers as an administrator.
-- Sign in or register over a UCU campus photo background. The login panel uses a translucent glass effect.
-- Open **Meet the Developers** on the login page to view the project team:
+- Register and sign in with JWT authentication.
+- View the project team from the login screen:
   Mawejje Alesha, Osire Samuel, Nangiro Apollo, Okumu Oscar Ebiru,
   Mulungi Favour Priscilla, and Nimusima Cuthbert.
+
+## Project structure
+
+```text
+backend/      Express API, authentication, and MySQL access
+database/     Production schema and local demo schema/seed
+frontend/     Vite, React, and Tailwind CSS application
+```
+
+The GitHub repository is [ucu-lost-andfound/ucu_lost_and_found](https://github.com/ucu-lost-andfound/ucu_lost_and_found).
 
 ## Requirements
 
 - Node.js and npm
-- MySQL Server
+- MySQL for local development
 
-## Local setup
+## Run locally
 
-Open two terminals in the project folder.
+### 1. Configure and start the backend
 
-### Backend
+From the project root, create `backend/.env` using `backend/.env.example` and fill in your local MySQL credentials and a private JWT secret:
 
-The backend reads its database and JWT settings from `backend/.env`. Start with the example file and configure your local values:
-
-```env
-PORT=5000
-DB_HOST=localhost
-DB_USER=your_mysql_user
-DB_PASSWORD=your_mysql_password
-DB_NAME=ucu_lost_found
-JWT_SECRET=use_a_long_random_secret
+```powershell
+Copy-Item backend\.env.example backend\.env
 ```
-
-For a local setup, copy `backend/.env.example` to `backend/.env`. Keep `.env` local; never commit or share its secret values.
 
 Install dependencies and start the API:
 
 ```powershell
-cd backend
+Set-Location backend
 npm install
 npm start
 ```
 
-The API will be available at `http://localhost:5000/api`.
+The API listens on `http://localhost:5000`. The health endpoint is `http://localhost:5000/health`.
 
-### Database
+### 2. Create the local database
 
-The backend connects to the local MySQL database named `ucu_lost_found`. The schema contains the `users`, `items`, and `claims` tables.
+For a fresh local database only, import `database/schema_and_seed.sql` using MySQL Workbench or your MySQL client. This script creates `ucu_lost_found` and inserts fictional demo records. Do not run it against an existing database; it is not an upgrade or reset script.
 
-For a fresh database only, import [`database/schema_and_seed.sql`](database/schema_and_seed.sql) once using MySQL Workbench, or from the project folder with the MySQL command-line client:
+### 3. Start the frontend
 
-```powershell
-mysql -u your_mysql_user -p < database/schema_and_seed.sql
-```
-
-The SQL file creates the database and inserts sample users and items. Do not import it again into a database that already has these tables; it is not an upgrade or reset script.
-
-### Frontend
-
-In the second terminal:
+In another terminal:
 
 ```powershell
-cd frontend
+Set-Location frontend
 npm install
 npm run dev
 ```
 
-Open the local URL printed by Vite. By default, the frontend sends API requests to `http://localhost:5000/api`. If the backend runs at a different address, set `VITE_API_URL` in the frontend environment, for example `http://localhost:5000/api`, then restart Vite.
+Open the Vite URL printed in the terminal. In development, the frontend defaults to `http://localhost:5000/api`. To use another API address, set `VITE_API_URL` in the frontend environment, including the `/api` suffix, then restart Vite.
 
-## Deploy online
+## Deploy with Railway and Vercel
 
-One simple setup is **Railway** for the Express API and MySQL, with **Vercel** for the Vite frontend.
+The repository is a monorepo. Deploy the API and frontend as separate services from the same GitHub repository.
 
-### 1. Deploy the API and database on Railway
+### 1. Create the Railway project and MySQL database
 
-1. Create a Railway project from this GitHub repository and add a MySQL service.
-2. Add a service for the repository with its root directory set to `backend` and its start command set to `npm start`.
-3. In the API service's variables, set `DB_HOST`, `DB_USER`, `DB_PASSWORD`, and `DB_NAME` to the corresponding values provided by the Railway MySQL service. Set `JWT_SECRET` to a new, long random value. Railway supplies `PORT`.
-4. Select the hosted database and import `database/schema.sql` once. This production schema does not create demo users.
-5. Generate a public domain for the API service. Its API URL will end with `/api`.
+1. Sign in to [Railway](https://railway.com) with GitHub and create a project.
+2. Add a MySQL service. Railway provides connection variables such as `MYSQLHOST`, `MYSQLPORT`, `MYSQLUSER`, `MYSQLPASSWORD`, and `MYSQLDATABASE`.
+3. Import `database/schema.sql` into the Railway database once. This production schema creates the `users`, `items`, and `claims` tables without demo accounts. Use Railway's database console or connect with a MySQL client. Do not import `schema_and_seed.sql` into production.
 
-Do not upload or commit `backend/.env`; set production values in the hosting provider's secret environment variables. If real credentials were previously committed, rotate them before deploying.
+### 2. Deploy the API on Railway
 
-After deployment, register your own account, then promote it to administrator in the hosted database console:
+1. Add a service from this GitHub repository.
+2. Set its root directory to `backend` and its start command to `npm start`.
+3. In the API service's **Variables**, configure:
+   - `MYSQLHOST`, `MYSQLPORT`, `MYSQLUSER`, `MYSQLPASSWORD`, and `MYSQLDATABASE` from the Railway MySQL service (or the equivalent `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, and `DB_NAME` variables).
+   - `JWT_SECRET` to a new, long, random secret.
+   - `NODE_ENV` to `production`.
+   - `CORS_ORIGIN` to the exact Vercel frontend origin after you deploy it, for example `https://your-project.vercel.app`. Multiple origins can be comma-separated.
+   - `PORT` is supplied by Railway; do not hardcode it.
+4. Under **Settings → Networking**, generate a public domain for the API.
+5. Check `https://your-api-domain/health`. A successful response is `{"status":"ok","database":"connected"}`. A `503` response means the API cannot reach MySQL; check Railway service variables and deployment logs.
+
+Register your own user after deployment, then make that account an administrator in the Railway database console:
 
 ```sql
 UPDATE users SET role = 'ADMIN' WHERE email = 'your-admin-email@example.com';
 ```
 
-Sign out and sign back in for the new role to take effect. Do not use the sample accounts in `database/schema_and_seed.sql` in production; they are for local demos.
+Sign out and sign back in for the new role to take effect. Never use the demo accounts in production. Keep `.env` files and secret values out of GitHub.
 
-### 2. Deploy the frontend on Vercel
+### 3. Deploy the frontend on Vercel
 
-1. Import the same GitHub repository into Vercel.
+1. Import the GitHub repository into [Vercel](https://vercel.com).
 2. Set the project root directory to `frontend`. Use `npm run build` as the build command and `dist` as the output directory.
-3. Add the environment variable `VITE_API_URL` with the Railway API URL, including `/api`, then deploy.
+3. Before deploying, add `VITE_API_URL` with the Railway API URL and `/api` suffix, for example `https://your-api-domain/api`.
+4. Deploy and note the Vercel origin, such as `https://your-project.vercel.app`.
+5. Set Railway's `CORS_ORIGIN` variable to that exact origin and redeploy the API. If using a custom frontend domain, include it as well.
+
+The app's viewport metadata and responsive Tailwind layouts support phone and desktop browsers. Verify the Vercel URL on both, sign in, and confirm API requests in the browser's Network panel use the Railway HTTPS URL and succeed.
+
+### 4. Automatic deployments
+
+When Railway and Vercel are connected to the repository, pushing to the configured GitHub branch triggers new deployments. Environment variable changes require a redeployment before the running services use them.
 
 ### Uploaded images
 
-The API currently stores uploaded images in its local `backend/uploads` directory. Configure persistent storage mounted at the API's uploads directory, or switch to object storage, so images survive redeployments. Without persistent storage, uploaded images may be lost when the service restarts.
+Images are stored under `backend/uploads`. Railway's normal container filesystem is ephemeral, so configure persistent storage mounted at the API's uploads directory or move uploads to object storage if images must survive redeployments.
+
+## Security and repository hygiene
+
+- `.env`, `.env.*` (except `.env.example`), `node_modules`, build output, and uploaded files are ignored by Git.
+- Set production secrets in Railway/Vercel project variables, not in source files.
+- If real credentials were previously committed, rotate them before deploying.
 
 ## Troubleshooting
 
-- **“Failed to fetch”**: make sure the backend is running on port 5000 and the frontend's `VITE_API_URL` points to it.
-- **Database access denied**: check `DB_HOST`, `DB_USER`, and `DB_PASSWORD` in `backend/.env`; make sure the MySQL service is running and that the user can access `ucu_lost_found`.
-- **Unknown database or missing tables**: create/import the schema using the one-time setup above.
+- **Health endpoint returns 503:** Check the Railway MySQL service is running, its variables are available to the API service, and `database/schema.sql` has been imported.
+- **Browser reports a CORS error:** Set `CORS_ORIGIN` to the exact deployed Vercel origin, without a trailing slash, then redeploy the API.
+- **Frontend reports `VITE_API_URL` is not configured:** Add the variable in Vercel and redeploy. The URL must use HTTPS and end in `/api`.
+- **Failed to fetch locally:** Start the API and check that local MySQL is running with the settings in `backend/.env`.
+- **Uploaded images disappear after a deployment:** Configure persistent storage or use an object storage service.

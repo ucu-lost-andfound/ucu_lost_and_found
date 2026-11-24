@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-const API_ORIGIN = API_URL.replace(/\/api\/?$/, '');
+const API_URL = (
+  import.meta.env.VITE_API_URL ||
+  (import.meta.env.DEV ? 'http://localhost:5000/api' : '')
+).replace(/\/+$/, '');
+const API_ORIGIN = API_URL.replace(/\/api$/, '');
 const CATEGORIES = ['Keys', 'Electronics', 'ID / Cards', 'Books / Stationery', 'Other'];
 const DEVELOPERS = [
   'Mawejje Alesha',
@@ -13,6 +16,10 @@ const DEVELOPERS = [
 ];
 
 async function request(path, { token, body, ...options } = {}) {
+  if (!API_URL) {
+    throw new Error('VITE_API_URL is not configured for this deployment.');
+  }
+
   const headers = new Headers(options.headers || {});
   if (token) headers.set('Authorization', `Bearer ${token}`);
 
