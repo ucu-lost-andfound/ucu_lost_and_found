@@ -37,15 +37,15 @@ From the project root, create `backend/.env` using `backend/.env.example` and fi
 Copy-Item backend\.env.example backend\.env
 ```
 
-Install dependencies and start the API:
+Install dependencies and start the API in watch mode:
 
 ```powershell
 Set-Location backend
 npm install
-npm start
+npm run dev
 ```
 
-The API listens on `http://localhost:5000`. The health endpoint is `http://localhost:5000/health`.
+The development command restarts the API when backend files change. For a normal production-style start, use `npm start`. The API listens on `http://localhost:5000`; its health endpoint is `http://localhost:5000/health`.
 
 ### 2. Create the local database
 
